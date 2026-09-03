@@ -1,12 +1,14 @@
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from .extractor import UnetExtractor, ResidualBlock
 from einops import rearrange
 
 
 class GaussianNetwork(nn.Module):
-    def __init__(self, rgb_dim=3, depth_dim=1, norm_fn='group'):
+    def __init__(self, rgb_dim=3, depth_dim=1, norm_fn='group',
+                 legacy_114x228=False):
         super().__init__()
         self.rgb_dims = [64, 64, 128]
         self.depth_dims = [32, 48, 96]
@@ -24,7 +26,10 @@ class GaussianNetwork(nn.Module):
         for degree in range(1, self.sh_degree + 1):
             self.sh_mask[degree**2 : (degree + 1) ** 2] = 0.1 * 0.25**degree
 
-        self.depth_encoder = UnetExtractor(in_channel=depth_dim, encoder_dim=self.depth_dims)
+        self.depth_encoder = UnetExtractor(
+            in_channel=depth_dim,
+            encoder_dim=self.depth_dims,
+            legacy_114x228=legacy_114x228)
 
         self.decoder3 = nn.Sequential(
             ResidualBlock(self.rgb_dims[2]+self.depth_dims[2], self.decoder_dims[2], norm_fn=norm_fn),
@@ -40,7 +45,6 @@ class GaussianNetwork(nn.Module):
             ResidualBlock(self.rgb_dims[0]+self.depth_dims[0]+self.decoder_dims[1], self.decoder_dims[0], norm_fn=norm_fn),
             ResidualBlock(self.decoder_dims[0], self.decoder_dims[0], norm_fn=norm_fn)
         )
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear")
         self.out_conv = nn.Conv2d(self.decoder_dims[0]+rgb_dim+1, self.head_dim, kernel_size=3, padding=1)
         self.out_relu = nn.ReLU(inplace=True)
 
@@ -82,12 +86,15 @@ class GaussianNetwork(nn.Module):
         feat1 = torch.concat([img_feat1, depth_feat1], dim=1)
 
         up3 = self.decoder3(feat3)
-        up3 = self.up(up3)
+        up3 = F.interpolate(
+            up3, size=feat2.shape[-2:], mode="bilinear", align_corners=False)
         up2 = self.decoder2(torch.cat([up3, feat2], dim=1))
-        up2 = self.up(up2)
+        up2 = F.interpolate(
+            up2, size=feat1.shape[-2:], mode="bilinear", align_corners=False)
         up1 = self.decoder1(torch.cat([up2, feat1], dim=1))
 
-        up1 = self.up(up1)
+        up1 = F.interpolate(
+            up1, size=img.shape[-2:], mode="bilinear", align_corners=False)
         out = torch.cat([up1, img, depth], dim=1)
         out = self.out_conv(out)
         out = self.out_relu(out)

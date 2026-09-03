@@ -69,7 +69,11 @@ class DrivingForwardModel(BaseModel):
         return DepthNetwork(cfg).cuda()
 
     def set_gaussiannet(self, cfg):
-        return GaussianNetwork(rgb_dim=3, depth_dim=1).cuda()
+        legacy_114x228 = (int(self.height), int(self.width)) == (114, 228)
+        return GaussianNetwork(
+            rgb_dim=3,
+            depth_dim=1,
+            legacy_114x228=legacy_114x228).cuda()
 
     def prepare_dataset(self, cfg, rank):
         if rank == 0:
@@ -422,4 +426,3 @@ class DrivingForwardModel(BaseModel):
                                novel_frame_id=novel_frame_id, 
                                bg_color=[1.0, 1.0, 1.0],
                                mode=self.novel_view_mode)
-

@@ -4,10 +4,13 @@ import torch.nn.functional as F
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, in_planes, planes, norm_fn='group', stride=1):
+    def __init__(self, in_planes, planes, norm_fn='group', stride=1,
+                 conv1_padding=1, downsample_kernel_size=1):
         super(ResidualBlock, self).__init__()
   
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, padding=1, stride=stride)
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=3,
+            padding=conv1_padding, stride=stride)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1)
         self.relu = nn.ReLU(inplace=True)
 
@@ -42,7 +45,11 @@ class ResidualBlock(nn.Module):
         
         else:    
             self.downsample = nn.Sequential(
-                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride), self.norm3)
+                nn.Conv2d(
+                    in_planes, planes,
+                    kernel_size=downsample_kernel_size,
+                    stride=stride),
+                self.norm3)
 
 
     def forward(self, x):
@@ -61,7 +68,8 @@ class ResidualBlock(nn.Module):
 
 
 class UnetExtractor(nn.Module):
-    def __init__(self, in_channel=3, encoder_dim=[32, 48, 96], norm_fn='group'):
+    def __init__(self, in_channel=3, encoder_dim=[32, 48, 96],
+                 norm_fn='group', legacy_114x228=False):
         super().__init__()
         self.in_ds = nn.Sequential(
             nn.Conv2d(in_channel, 32, kernel_size=5, stride=2, padding=2),
@@ -77,8 +85,12 @@ class UnetExtractor(nn.Module):
             ResidualBlock(encoder_dim[0], encoder_dim[1], stride=2, norm_fn=norm_fn),
             ResidualBlock(encoder_dim[1], encoder_dim[1], norm_fn=norm_fn)
         )
+        res3_downsample = ResidualBlock(
+            encoder_dim[1], encoder_dim[2], stride=2, norm_fn=norm_fn,
+            conv1_padding=0 if legacy_114x228 else 1,
+            downsample_kernel_size=3 if legacy_114x228 else 1)
         self.res3 = nn.Sequential(
-            ResidualBlock(encoder_dim[1], encoder_dim[2], stride=2, norm_fn=norm_fn),
+            res3_downsample,
             ResidualBlock(encoder_dim[2], encoder_dim[2], norm_fn=norm_fn),
         )
 

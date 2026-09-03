@@ -1,0 +1,81 @@
+ddp:
+  ddp_enable: False
+  world_size: 1
+  gpus: [0]
+
+model:
+  novel_view_mode: 'SF'
+
+  num_layers: 18
+  weights_init: False
+
+  fusion_level: 2
+  fusion_feat_in_dim: 256
+  use_skips: False
+
+  voxel_unit_size: [1.0, 1.0, 1.5]
+  voxel_size: [100, 100, 20]
+  voxel_str_p: [-50.0, -50.0, -15.0]
+  voxel_pre_dim: [64]
+  proj_d_bins: 50
+  proj_d_str: 2
+  proj_d_end: 50
+
+data:
+  data_path: './input_data/nuscenes/'
+  log_dir: './results/'
+  dataset: 'nuscenes'
+  back_context: 1
+  forward_context: 1
+  depth_type: 'lidar'
+  cameras: ['CAM_FRONT', 'CAM_FRONT_LEFT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT', 'CAM_BACK']
+  train_requirements: (gt_pose, gt_ego_pose, gt_depth, mask)
+  val_requirements: (gt_pose, gt_ego_pose, gt_depth, mask)
+
+training:
+  height: 114
+  width: 228
+  scales: [0]
+  frame_ids: [0, -1, 1]
+
+  batch_size: 1
+  num_workers: 4
+  learning_rate: 0.0001
+  num_epochs: 10
+  scheduler_step_size: 15
+
+  min_depth: 1.5
+  max_depth: 80.0
+
+  spatio: True
+  spatio_temporal: True
+  gaussian: True
+  intensity_align: True
+  focal_length_scale: 300
+
+loss:
+  disparity_smoothness: 0.001
+  spatio_coeff: 0.03
+  spatio_tempo_coeff: 0.1
+  gaussian_coeff: 0.01
+  pose_loss_coeff: 0.0
+
+eval:
+  eval_batch_size: 1
+  eval_num_workers: 4
+  eval_min_depth: 0
+  eval_max_depth: 80
+  eval_visualize: False
+  save_images: False
+  save_path: './results/images'
+
+load:
+  pretrain: False
+  models_to_load: ['depth_net', 'gs_net']
+  load_dir: './weight_SF_114_228'
+
+logging:
+  early_phase: 5000
+  log_frequency: 1000
+  late_log_frequency: 5000
+  save_frequency: 1

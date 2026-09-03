@@ -31,7 +31,13 @@ class DepthNetwork(nn.Module):
         # depth decoder
         num_ch_enc = self.encoder.num_ch_enc[:(self.fusion_level+1)] 
         num_ch_dec = [16, 32, 64, 128, 256]
-        self.decoder = DepthDecoder(self.fusion_level, num_ch_enc, num_ch_dec, self.scales, use_skips = self.use_skips)
+        self.decoder = DepthDecoder(
+            self.fusion_level,
+            num_ch_enc,
+            num_ch_dec,
+            self.scales,
+            use_skips=self.use_skips,
+            output_size=(int(self.height), int(self.width)))
     
     def read_config(self, cfg):
         for attr in cfg.keys(): 
@@ -138,12 +144,14 @@ class DepthNetwork(nn.Module):
     
         
 class DepthDecoder(nn.Module):
-    def __init__(self, level_in, num_ch_enc, num_ch_dec, scales=range(2), use_skips=False):
+    def __init__(self, level_in, num_ch_enc, num_ch_dec, scales=range(2),
+                 use_skips=False, output_size=None):
         super(DepthDecoder, self).__init__()
 
         self.num_output_channels = 1
         self.scales = scales
         self.use_skips = use_skips
+        self.output_size = output_size
         
         self.level_in = level_in
         self.num_ch_enc = num_ch_enc
@@ -180,5 +188,12 @@ class DepthDecoder(nn.Module):
             x = torch.cat(x, 1)
             x = self.convs[('upconv', i, 1)](x)
             if i in self.scales:
-                outputs[('disp', i)] = self.sigmoid(self.convs[('dispconv', i)](x))                
+                disp = self.sigmoid(self.convs[('dispconv', i)](x))
+                if self.output_size is not None:
+                    disp = F.interpolate(
+                        disp,
+                        size=self.output_size,
+                        mode='bilinear',
+                        align_corners=True)
+                outputs[('disp', i)] = disp
         return outputs
